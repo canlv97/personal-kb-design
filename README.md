@@ -1,114 +1,110 @@
-# 把 Karpathy 的 Wiki 拆了重装
+# Remixing Karpathy's LLM Wiki
 
-> 我和 AI agent 折腾了一个下午，把 Karpathy 那套 LLM Wiki 拆开又拼回去。这篇文章记录的是我们撞了哪些墙，怎么修的，以及修完到底好不好用。
-
----
-
-网上已经有人把 Karpathy 的 LLM Wiki 模式做成了完整产品——[llmwiki](https://github.com/lucasastorian/llmwiki) 有 Chrome 插件、MCP 连接、定时自维护，一千多 star，挺厉害的。
-
-但我们做的事不太一样。
-
-我们是从一个真实的知识库出发的——我的 Obsidian 里塞了交易笔记、嵌入式文档、半导体物理、ASMR 策划、健康管理、装机配置、考研计划。乱七八糟什么都有。然后发现 Karpathy 那套方案有好几个地方跟实际需求对不上。
-
-不是他错了。是他的场景（一个人深入研究 AI）和我的场景（一个人过着混乱而真实的知识生活）之间有裂缝。这篇文章讲的就是这些裂缝在哪，我们怎么填的。我觉得这比"又一个 Karpathy 实现"更有分享价值。
+> My AI agent and I spent an afternoon taking apart Karpathy's LLM Wiki pattern and putting it back together. This is what broke, what we fixed, and whether any of it was worth it.
 
 ---
 
-## 第一件事：承认你的知识库就是大杂烩
+There are already clean implementations of Karpathy's LLM Wiki out there. [llmwiki](https://github.com/lucasastorian/llmwiki) has a Chrome extension, MCP integration, and scheduled self-maintenance. Over a thousand stars. It's good.
 
-Karpathy 的 wiki 是一个领域、一个主题。但真实的人不是这样的。
+We did something different.
 
-你打开自己的 Obsidian 看看。里面有工作、有爱好、有日记、有随手记的菜谱、有半年前立的 flag 至今没动过。这些东西唯一的共同点是：都属于你。
+We started from an actual knowledge base — my Obsidian vault. It had trading notes, embedded systems docs, semiconductor physics, ASMR content planning, health tracking, PC build specs, grad school prep. Total chaos. And as we tried to fit Karpathy's framework onto this mess, things kept breaking.
 
-这不是你的问题。甚至企业知识库也是这样——华为如果只存通信协议不存芯片设计、不存美学规范、不存营销案例，那个库跟没有一样。
-
-所以第一件事就定了：这个库必须是多域的。它得同时装下交易、AI、嵌入式、自媒体、健康……我甚至没打算给这些东西做"顶层设计"，就让它们混着。因为混着才能碰撞。
-
-嵌入式里中断优先级的仲裁逻辑，和交易里多个信号同时触发时的取舍——底层是不是同一个结构？我不知道，但我想知道。而这种"想知道"的冲动，往往是在洗澡或者走路的时候突然蹦出来的。
+Not because Karpathy was wrong. Because his scenario (one person deep-diving one domain) and mine (one person living a messy, multi-domain life) are genuinely different things. This article is about the cracks we found, and how we patched them.
 
 ---
 
-## 灵感需要个地方搁着
+## First thing: your knowledge base is a grab bag
 
-Karpathy 的模式假设你已经有确定的知识了。但多域交叉恰恰依赖那些还没定型的东西——半截想法、模糊的类比、觉得"这俩好像有点关系"但说不上来为什么。
+Karpathy's wiki assumes one domain. But look at your own Obsidian vault. Work stuff, hobbies, journal entries, that recipe you saved six months ago, the flag you planted and never returned to. The only thing these have in common is that they're yours.
 
-我管这种东西叫灵感碎片。卢曼管它叫 fleeting note。
+This isn't a personal failing. Even corporate knowledge bases work this way. If Huawei's internal wiki only stored telecom protocols and skipped chip design, industrial design specs, and marketing playbooks, it'd be useless.
 
-关键是：它需要一个容器。一个你可以三秒钟记下来、不用管格式、不用管引用、不用想它算哪个域的地方。
+So the first decision was obvious: this thing needs to hold multiple domains. Trading, AI, embedded systems, content creation, health. I didn't even try to architect a clean separation. Let them mix. Because mixing is where the interesting stuff happens.
 
-所以我们在 Karpathy 的 wiki/ 下面加了一个 `literature/` 层。用 `status` 字段区分成熟度——`fleeting` 是刚记的，`draft` 是补了来源的，`done` 是可以升格为永久笔记的。
-
-一个设计决策我觉得值得单独说：**fleeting 不是独立文件夹。** 如果给它独立文件夹，它就会变成灵感坟场。丢进去再也不看。放在 literature/ 里和其他笔记混在一起，lint 的时候 agent 会自动标出 30 天没动过的 fleeting——要么发展，要么删。不会默默烂掉。
+The arbitration logic in embedded interrupt priorities, and the way you decide which trade signal to act on when three fire at once — same underlying structure? I don't know. But I want to find out. And that kind of question usually hits you in the shower, not at your desk.
 
 ---
 
-## 多域意味着索引要拆
+## Inspiration needs a place to land
 
-这个道理很简单但我是用了才意识到的。
+Karpathy's pattern assumes you already have solid knowledge to organize. But cross-domain thinking depends on the stuff that hasn't solidified yet. Half-formed ideas, vague analogies, that sense of "these two things feel related" when you can't articulate why.
 
-Karpathy 的 index.md 是所有概念混排。二十几个页面的时候无所谓。但六个域、一百个页面以后，agent 回答一个交易问题要先读完所有域的索引。每问一次烧两千 token 在翻目录上。
+I call these inspiration fragments. Luhmann called them fleeting notes.
 
-拆成域索引就解决了。`wiki/交易-index.md` 只有十几行，两百 token。问交易只读交易索引，绝不碰光电索引。跨域搜索走另一条路——先用 `search_files(output_mode=files_only)` 定位候选，这个模式只返回文件名，token 接近零，然后再精读命中的。
+They need a container. Something you can dump a thought into in three seconds without worrying about formatting, citations, or which domain it belongs to. So we added a `literature/` layer under `wiki/`, with a `status` field that tracks maturity: `fleeting` (just captured), `draft` (sources added), `done` (ready to promote to a permanent note).
 
-这个优化没什么技术含量，但它是整个方案里 token 效率提升最大的一步。而且越往后越值——页面从 30 涨到 300，域索引还是那些行。
+One design decision worth calling out: fleeting is not a separate folder. If you give it its own folder, it becomes an idea graveyard. Stuff goes in, never comes out. By keeping fleeting notes mixed in with the rest of `literature/`, the agent can flag anything untouched for 30 days during lint. Either develop it or delete it. Nothing rots silently.
 
 ---
 
-## 长这样
+## Multiple domains means the index has to split
+
+This one is simple but I didn't realize it until I felt the token burn.
+
+Karpathy's `index.md` is a flat list of everything. Fine at 20 pages. At six domains and a hundred pages, the agent has to read the entire index just to answer a question about trading. Two thousand tokens burned on table of contents.
+
+Per-domain indices fix this. `wiki/trading-index.md` has maybe 15 lines. 200 tokens. Ask about trading, read only the trading index. Never touch the optoelectronics index. Cross-domain searches take a different path: `search_files(output_mode=files_only)` to locate candidates first (token cost near zero, since this mode only returns filenames), then deep-read the hits.
+
+There's nothing clever about this optimization, but it's the single biggest token-efficiency gain in the whole design. And it scales: going from 30 pages to 300, the domain index stays the same size.
+
+---
+
+## What it looks like
 
 ```
-我的库/
-├── SCHEMA.md                   ← agent 行为规范（活的，会随着纠错更新）
-├── raw/                        ← 原始素材（平铺，分类靠 frontmatter）
+my-vault/
+├── SCHEMA.md                   ← agent behavior spec (living document)
+├── raw/                        ← source material (flat, classified via frontmatter)
 ├── wiki/
-│   ├── index.md                ← 总目录
-│   ├── log.md                  ← 操作日志
-│   ├── 交易-index.md           ← 域索引（每个域一个）
-│   ├── literature/             ← 文献笔记（fleeting → draft → done）
-│   ├── concepts/               ← 永久笔记
+│   ├── index.md                ← top-level directory
+│   ├── log.md                  ← changelog
+│   ├── trading-index.md        ← per-domain indices
+│   ├── literature/             ← literature notes (fleeting → draft → done)
+│   ├── concepts/               ← permanent notes
 │   ├── entities/
 │   └── comparisons/
-├── projects/                   ← 项目笔记（有死期的）
-└── 今花今拾/                   ← 日记，不归 wiki 管
+├── projects/                   ← temporary project notes (have an expiry date)
+└── journals/                   ← diary, not part of the wiki system
 ```
 
-每个页面跑两套 frontmatter：
+Every page carries two sets of frontmatter:
 
 ```yaml
-# agent 检索用的
-domain: ['交易']
+# For the agent
+domain: ['trading']
 type: concept
 status: done
 
-# 人看的卡片标签
+# For human browsing (preserves original Zettelkasten tags)
 tags:
-  - literature文献/技巧卡
-  - 交易
+  - literature/technique-card
+  - trading
 ```
 
 ---
 
-## 几个用下来才知道的事
+## Things I learned by actually using it
 
-**域用 tag，素材类型用文件夹。** 一篇东西不可能同时是论文又是公众号文章——互斥的维度用文件夹。一篇东西可以同时属于嵌入式又属于金融——多对多的维度用 tag。各用各的。
+**Domain goes in tags, source type goes in folders.** A document can't be both a PDF and a blog post — mutually exclusive dimensions belong in folders. A document can belong to both embedded systems and finance — many-to-many dimensions belong in tags. Each tool for its own job.
 
-**raw/ 平铺在手机上不好翻。** 文件管理器里五十个文件名排一列确实难受。Obsidian 里用 Dataview 按 domain 分组浏览可以绕过去。算是个已知缺点。
+**Flat `raw/` sucks on mobile.** Fifty filenames in a file manager is a wall of text. In Obsidian, Dataview queries grouped by domain make it tolerable. Known weakness.
 
-**域索引目前靠 agent 手动维护。** 新建页面的时候它会自动更新，但如果写错了没有自动修复。将来写个脚本扫描 frontmatter 自动生成索引，这应该是整个方案里最值得优化的地方。
+**Domain indices are currently hand-maintained by the agent.** It updates them when creating pages, but there's no auto-repair if it messes up. A script that scans frontmatter and regenerates indices would be the highest-value improvement here.
 
-**fleeting → permanent 的升级依赖人的判断。** 规则是"综合两个以上来源"，但判断靠人。lint 可以推一把，最后还是得自己决定。我经常拖。
-
----
-
-## 如果你也想搞
-
-别上来就设计完美架构。丢三十篇素材进去，用两个星期。你会自然知道哪些分类是真的，哪些是你想象的。SCHEMA.md 是活的——agent 做错一次你就往里面加一条规则。域索引越早搞定越好。lint 设成定时任务。
+**Fleeting-to-permanent promotion depends on human judgment.** The rule is "synthesized from 2+ sources," but the call is ultimately yours. Lint nudges. I still procrastinate.
 
 ---
 
-## 参考
+## If you want to build one
 
-- [Karpathy 的 LLM Wiki 原始模式](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
-- [llmwiki](https://github.com/lucasastorian/llmwiki)——把这个模式做成了完整产品
-- [卡片笔记法](https://zh.wikipedia.org/wiki/%E5%8D%A1%E7%89%87%E7%AC%94%E8%AE%B0%E6%B3%95)
-- 本文配套的 [SCHEMA.md](./SCHEMA.md)——agent 行为规范的完整示例
+Don't architect the perfect structure upfront. Dump 30 sources in, use it for two weeks. You'll learn which categories are real and which ones you imagined. SCHEMA.md is a living document — every time the agent screws up, add a rule. Domain indices are the highest-leverage thing to get right early. Set up lint as a cron job.
+
+---
+
+## References
+
+- [Karpathy's original LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
+- [llmwiki](https://github.com/lucasastorian/llmwiki) — full product implementation
+- [Zettelkasten method](https://en.wikipedia.org/wiki/Zettelkasten)
+- The companion [SCHEMA.md](./SCHEMA.md) — a complete agent behavior spec you can adapt
